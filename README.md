@@ -27,7 +27,7 @@ catphan404 -m full_analysis --plot
 catphan404 -m full_analysis --plot --show-plot
 
 # Or specify folder path and output directory
-catphan404 path/to/dicom_folder -m uniformity high_contrast --plot --save-plot results/
+catphan404 path/to/dicom_folder -m uniformity detailed_uniformity high_contrast --plot --save-plot results/
 ```
 
 **Programmatic Usage:**
@@ -38,25 +38,43 @@ from catphan404.analysis import Catphan404Analyzer
 # Load DICOM series
 series = load_dicom_series('path/to/dicom_folder')
 
-# Create analyzer (automatically handles slice selection)
-ana = Catphan404Analyzer(dicom_series=series)
+# Create analyzer with 3-slice averaging
+analyzer = Catphan404Analyzer(dicom_series=series, use_slice_averaging=True)
 
-# Run modules - rotation automatically detected in ctp401 and applied to others
-ana.run_uniformity()
-ana.run_ctp401()  # Detects rotation, stores in ana.results['rotation_angle']
-ana.run_high_contrast()  # Automatically uses detected rotation
-ana.run_ctp515()  # Automatically uses detected rotation
+# Recommended: Use run_full_analysis() for complete workflow
+results = analyzer.run_full_analysis()  # Runs all modules in proper order
 
-# Manual rotation override (if needed)
-ana.run_ctp401(t_offset=2.5)  # Manually set 2.5° rotation
-ana.run_high_contrast(t_offset=2.5)
-ana.run_ctp515(angle_offset=2.5)
+# Or run specific modules only
+results = analyzer.run_full_analysis(modules=['uniformity', 'detailed_uniformity', 'ctp401'])
+
+# Access results
+print(f"Detected rotation: {results['rotation_angle']:.2f}°")
+print(f"Uniformity: {results['uniformity']['uniformity']:.2f}%")
+
+# Advanced: Run individual modules for fine-grained control
+analyzer.run_uniformity()
+analyzer.run_detailed_uniformity()
+analyzer.run_ctp401()  # Detects rotation, stores in analyzer.results['rotation_angle']
+analyzer.run_high_contrast()  # Automatically uses detected rotation
+analyzer.run_ctp515()  # Automatically uses detected rotation
+
+# Manual rotation override (requires individual module calls)
+analyzer.run_ctp401(t_offset=2.5)  # Manually set 2.5° rotation
+analyzer.run_high_contrast(t_offset=2.5)
+analyzer.run_ctp515(angle_offset=2.5)
 
 # Disable automatic rotation detection
-ana.run_ctp401(detect_rotation=False, t_offset=0.0)
+analyzer.run_ctp401(detect_rotation=False, t_offset=0.0)
 
 # Save results
-ana.save_results_json('results.json')
+analyzer.save_results_json('results.json')
+
+# Optional: generate plots after analysis
+analyzer.generate_plots(
+    modules=['uniformity', 'high_contrast', 'ctp401', 'ctp515'],
+    save_plot_path='results',
+    show_plot=False
+)
 ```
 
 **Legacy Single-Image Mode:**
@@ -74,7 +92,7 @@ ana.run_uniformity()
 You can use any analyzer module independently without `Catphan404Analyzer`:
 
 ```python
-from catphan404.uniformity import UniformityAnalyzer
+from alexandria import UniformityAnalyzer
 from catphan404.io import load_image
 import numpy as np
 
@@ -102,11 +120,11 @@ results = analyzer.analyze()
 print(results)
 ```
 
-All analyzer modules follow the same pattern:
+All analyzer modules follow the same pattern and are provided by the **Alexandria** library:
 - `UniformityAnalyzer(image, center, pixel_spacing)`
 - `HighContrastAnalyzer(image, center, pixel_spacing)`
-- `AnalyzerCTP401(image, center, pixel_spacing)`
-- `AnalyzerCTP515(image, center, pixel_spacing)`
+- `CTP401Analyzer(image, center, pixel_spacing)`
+- `CTP515Analyzer(image, center, pixel_spacing)`
 
 ## Requirements
 - numpy
@@ -115,6 +133,7 @@ All analyzer modules follow the same pattern:
 - imageio (for TIFF/JPG/PNG formats)
 - scikit-image (for image processing)
 - matplotlib (for plotting)
+- **alexandria** (shared CatPhan analysis library)
 
 ## Documentation
 You can generate HTML docs using Sphinx:

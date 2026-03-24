@@ -35,6 +35,7 @@ python -m Catphan404.cli [folder_path] -m <module> [options]
 ## Available Modules
 
 - `uniformity`      - Uniformity analysis (CTP486 module)
+- `detailed_uniformity` - Concentric profile sampling (CTP486 module)
 - `high_contrast`   - High-contrast resolution / line pairs (CTP528 module)
 - `ctp401`          - HU linearity / material analysis (CTP401 module)
 - `ctp515`          - Low-contrast detectability (CTP515 module)
@@ -47,7 +48,7 @@ python -m Catphan404.cli [folder_path] -m <module> [options]
 - `-f, --folder`    - Explicitly treat input as DICOM folder (default behavior)
 - `--single-image`  - Legacy mode: treat input as single image file (no slice averaging)
 - `--out, -o`       - JSON output file path (default: `<module>.json`)
-- `--plot`          - Generate diagnostic plots
+- `--plot`          - Generate diagnostic plots (handled by Catphan404Analyzer)
 - `--save-plot`     - Directory or file path to save plots as PNG
 - `--show-plot`     - Display plots interactively (default: full_analysis saves without showing)
 - `--no-save`       - Skip saving JSON results (useful for quick visual checks)
@@ -65,34 +66,52 @@ python -m Catphan404.cli [folder_path] -m <module> [options]
 
 ### Workflow Example
 
+**Recommended: Use run_full_analysis() method**
+
 ```python
 from catphan404.io import load_dicom_series
 from catphan404.analysis import Catphan404Analyzer
 
 series = load_dicom_series('scans/catphan')
-ana = Catphan404Analyzer(dicom_series=series)
+analyzer = Catphan404Analyzer(dicom_series=series, use_slice_averaging=True)
 
-# Run CTP401 first to detect rotation
-ana.run_ctp401()  # Automatically detects rotation
-print(f"Detected rotation: {ana.results['rotation_angle']:.2f}°")
+# Run all modules in proper order (uniformity → detailed_uniformity → ctp401 → high_contrast → ctp515)
+results = analyzer.run_full_analysis()
+
+# Or run specific modules
+results = analyzer.run_full_analysis(modules=['uniformity', 'detailed_uniformity', 'ctp401'])
+
+print(f"Detected rotation: {results['rotation_angle']:.2f}°")
+```
+
+**Advanced: Run individual modules manually**
+
+```python
+# For fine-grained control, run modules individually
+analyzer.run_uniformity()
+analyzer.run_detailed_uniformity()
+analyzer.run_ctp401()  # Automatically detects rotation
+print(f"Detected rotation: {analyzer.results['rotation_angle']:.2f}°")
 
 # Other modules use detected rotation automatically
-ana.run_high_contrast()  # Uses rotation_angle from results
-ana.run_ctp515()  # Uses rotation_angle from results
+analyzer.run_high_contrast()  # Uses rotation_angle from results
+analyzer.run_ctp515()  # Uses rotation_angle from results
 ```
 
 ### Manual Override (Programmatic API)
 
+**Note:** Manual rotation control requires calling individual `run_*` methods instead of `run_full_analysis()`.
+
 ```python
 # Disable automatic detection and set manual rotation
-ana.run_ctp401(detect_rotation=False, t_offset=2.5)  # 2.5° manual offset
+analyzer.run_ctp401(detect_rotation=False, t_offset=2.5)  # 2.5° manual offset
 
 # Or override automatic detection
-ana.run_ctp401(t_offset=3.0)  # Uses 3.0° instead of detected value
+analyzer.run_ctp401(t_offset=3.0)  # Uses 3.0° instead of detected value
 
 # Apply same offset to other modules
-ana.run_high_contrast(t_offset=3.0)
-ana.run_ctp515(angle_offset=3.0)
+analyzer.run_high_contrast(t_offset=3.0)
+analyzer.run_ctp515(angle_offset=3.0)
 ```
 
 **Note:** The CLI does not expose rotation parameters; use the programmatic API for manual control.
@@ -131,7 +150,7 @@ The `load_dicom_series()` function prints:
 Simply run without specifying a path to open a GUI folder selector:
 
 ```bash
-catphan404 -m uniformity high_contrast --plot
+catphan404 -m uniformity detailed_uniformity high_contrast --plot
 ```
 
 The program will prompt you to select a DICOM folder, then automatically:
@@ -143,7 +162,7 @@ The program will prompt you to select a DICOM folder, then automatically:
 ### Specify DICOM Folder Path
 
 ```bash
-catphan404 path/to/dicom_series -m uniformity ctp401 --plot --save-plot results/
+catphan404 path/to/dicom_series -m uniformity detailed_uniformity ctp401 --plot --save-plot results/
 ```
 
 ### Multiple Modules in One Run
@@ -151,7 +170,7 @@ catphan404 path/to/dicom_series -m uniformity ctp401 --plot --save-plot results/
 Run all available modules on a DICOM series:
 
 ```bash
-catphan404 scans/catphan_series -m uniformity high_contrast ctp401 ctp515 --plot
+catphan404 scans/catphan_series -m uniformity detailed_uniformity high_contrast ctp401 ctp515 --plot
 ```
 
 **Or use the full_analysis shortcut:**
@@ -161,7 +180,7 @@ catphan404 -m full_analysis --plot
 ```
 
 Output:
-- `full_analysis.json` (or `uniformity_high_contrast_ctp401_ctp515.json`) with all results
+- `full_analysis.json` (or `uniformity_detailed_uniformity_high_contrast_ctp401_ctp515.json`) with all results
 - Plots saved to current directory (but not displayed)
 
 **To display plots interactively:**
@@ -178,11 +197,12 @@ catphan404 -m full_analysis --plot --save-plot output_dir/
 
 **Or specify individual modules:**
 ```bash
-catphan404 -m uniformity high_contrast ctp401 ctp515 --plot --save-plot output_dir/
+catphan404 -m uniformity detailed_uniformity high_contrast ctp401 ctp515 --plot --save-plot output_dir/
 ```
 
 Produces separate PNG files for each module:
 - `output_dir/uniformity.png`
+- `output_dir/detailed_uniformity.png`
 - `output_dir/high_contrast.png`
 - `output_dir/ctp401.png`
 - `output_dir/ctp515.png`
@@ -194,6 +214,7 @@ catphan404 -m full_analysis --plot --save-plot qa_jan2026
 
 Produces:
 - `qa_jan2026_uniformity.png`
+- `qa_jan2026_detailed_uniformity.png`
 - `qa_jan2026_high_contrast.png`
 - `qa_jan2026_ctp401.png`
 - `qa_jan2026_ctp515.png`
@@ -273,12 +294,20 @@ print(f"Phantom rotation: {analyzer.results.get('rotation_angle', 0):.2f}°")
 # Save all results (includes rotation_angle)
 analyzer.save_results_json('output.json')
 
-# Generate plots
-from Catphan404.plots.plotters import UniformityPlotter, HighContrastPlotter
-fig1 = UniformityPlotter(analyzer._uniformity_analyzer).plot()
-fig2 = HighContrastPlotter(analyzer._high_contrast_analyzer).plot()
+# Generate plots via the analyzer
+figs = analyzer.generate_plots(
+  modules=['uniformity', 'detailed_uniformity', 'high_contrast'],
+  save_plot_path=Path('results'),
+  show_plot=False
+)
+
+# Or call individual plot helpers
+fig1 = analyzer.plot_uniformity()
+fig2 = analyzer.plot_detailed_uniformity()
+fig3 = analyzer.plot_high_contrast()
 fig1.savefig('uniformity.png')
-fig2.savefig('high_contrast.png')
+fig2.savefig('detailed_uniformity.png')
+fig3.savefig('high_contrast.png')
 ```
 
 **Legacy single-image mode:**
@@ -305,7 +334,7 @@ Complete analysis workflow using DICOM folder:
 
 ```bash
 # Single command analyzes all modules from one DICOM series
-catphan404 scans/catphan_20260122 -m uniformity high_contrast ctp401 ctp515 \
+catphan404 scans/catphan_20260122 -m uniformity detailed_uniformity high_contrast ctp401 ctp515 \
   --plot --save-plot results/ --out results/full_analysis.json
 ```
 

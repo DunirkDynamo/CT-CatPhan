@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib",
     "imageio",  # Needed for CLI image loading
     "scikit-image",  # Needed for image processing utilities
+    "alexandria",  # Shared CatPhan analysis library
 ]
 
 [project.urls]
@@ -30,4 +31,11 @@ Homepage = "https://github.com/your/repo"   # optional
 # CLI entry point
 # -----------------------------
 [project.scripts]
-catphan404 = "catphan404.cli:main"
+catphan404 = "Catphan404.cli:main"
+
+# -----------------------------
+# Package discovery
+# -----------------------------
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["Catphan404*"]

@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 from .io import load_image, select_dicom_folder, load_dicom_series
 from .analysis import Catphan404Analyzer
-from .plots.plotters import HighContrastPlotter, UniformityPlotter, CTP401Plotter, CTP515Plotter
-from matplotlib import pyplot as plt
+
 
 AVAILABLE_MODULES = [
     'uniformity',
+    'detailed_uniformity',
     'high_contrast',
     'ctp401',
     'ctp515',
@@ -19,26 +19,12 @@ AVAILABLE_MODULES = [
 # Order matters: uniformity detects center, ctp401 detects rotation, then others use it
 ANALYSIS_MODULES = [
     'uniformity',      # First: detect phantom center
+    'detailed_uniformity',  # Detailed concentric profiles (same slice)
     'ctp401',          # Second: detect rotation angle using air ROIs
     'high_contrast',   # Third: uses detected rotation for line pair analysis
     'ctp515'           # Fourth: uses detected rotation for low-contrast targets
 ]
 
-# Mapping of module -> analyzer attribute on Catphan404Analyzer
-ANALYZER_ATTRS = {
-    'high_contrast': '_high_contrast_analyzer',
-    'uniformity'   : '_uniformity_analyzer',
-    'ctp401'       : '_ctp401_analyzer',
-    'ctp515'       : '_ctp515_analyzer'
-}
-
-# Mapping of module -> corresponding plotter class
-PLOTTER_CLASSES = {
-    'high_contrast': HighContrastPlotter,
-    'uniformity'   : UniformityPlotter,
-    'ctp401'       : CTP401Plotter,
-    'ctp515'       : CTP515Plotter
-}
 
 
 def parse_args():
@@ -166,14 +152,8 @@ def run_cli(args):
         modules_to_run = ANALYSIS_MODULES
         print("Running full analysis (all modules)...")
 
-    # Run selected modules
-    for m in modules_to_run:
-        run_method = f'run_{m}'
-        if hasattr(analyzer, run_method):
-            getattr(analyzer, run_method)()
-            print(f"✅ Ran: {run_method}()")
-        else:
-            print(f"⚠️  Analyzer has no method '{run_method}'. Skipping.")
+    # Run analysis workflow (orchestrated by the analyzer class)
+    analyzer.run_full_analysis(modules=modules_to_run)
 
     # Decide JSON output path
     out_path = Path(args.out) if args.out else Path("_".join(modules_to_run) + ".json")
@@ -192,7 +172,7 @@ def run_cli(args):
     else:
         print("⚠️  Results NOT saved (--no-save)")
 
-    # Plotting using separate plotters
+    # Plotting using analyzer helper
     if args.plot:
         # For full_analysis, default to saving plots
         is_full_analysis = 'full_analysis' in args.modules
@@ -201,39 +181,14 @@ def run_cli(args):
         # Auto-enable save for full_analysis if not specified
         if is_full_analysis and save_plot_path is None:
             save_plot_path = Path('.')  # Save to current directory
-
-        for m in modules_to_run:
-            analyzer_attr = ANALYZER_ATTRS.get(m)
-            plotter_class = PLOTTER_CLASSES.get(m)
-
-            if analyzer_attr and hasattr(analyzer, analyzer_attr) and plotter_class:
-                # Instantiate plotter with the corresponding analyzer object
-                plotter_obj = plotter_class(getattr(analyzer, analyzer_attr))
-
-                try:
-                    fig = plotter_obj.plot()
-
-                    # Save plot if path is specified
-                    if save_plot_path:
-                        if save_plot_path.is_dir():
-                            target_path = save_plot_path / f"{m}.png"
-                        else:
-                            p = save_plot_path
-                            suffix = p.suffix if p.suffix else ".png"
-                            target_path = p.with_name(p.stem + f"_{m}" + suffix)
-                        fig.savefig(target_path)
-                        print(f"📈 Saved plot for {m} -> {target_path.resolve()}")
-                    
-                    # Only show plot if explicitly requested
-                    if args.show_plot:
-                        plt.show()
-                    else:
-                        plt.close(fig)
-
-                except Exception as e:
-                    print(f"❌ Plotting failed for module {m}: {e}")
-            else:
-                print(f"⚠️ No plotter available for module '{m}'")
+        try:
+            analyzer.generate_plots(
+                modules=modules_to_run,
+                save_plot_path=save_plot_path,
+                show_plot=args.show_plot
+            )
+        except Exception as e:
+            print(f"❌ Plotting failed: {e}")
 
     # Summary
     print("\nModules run:", ", ".join(modules_to_run))
