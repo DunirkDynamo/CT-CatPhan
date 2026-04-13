@@ -3,8 +3,7 @@
 from pathlib import Path
 
 
-SPEC_FILE = Path(__file__).resolve()
-REPO_ROOT = SPEC_FILE.parents[2]
+REPO_ROOT = Path.cwd().resolve()
 SRC_ROOT = REPO_ROOT / 'src'
 GUI_LAUNCHER = SRC_ROOT / 'catphan500' / 'gui_launcher.py'
 
