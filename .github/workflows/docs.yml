@@ -2,17 +2,8 @@ name: docs
 
 on:
   push:
-    branches:
-      - main
-      - master
-    paths:
-      - docs/**
-      - src/**
-      - pyproject.toml
-      - README.md
-      - CLI_USAGE.md
-      - .github/workflows/docs.yml
-  workflow_dispatch:
+    tags:
+      - 'v*.*.*'
 
 permissions:
   contents: read
@@ -29,6 +20,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -54,9 +47,6 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

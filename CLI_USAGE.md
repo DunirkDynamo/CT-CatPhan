@@ -7,7 +7,7 @@ This guide documents the current public command-line behavior for the
 
 Install the package from the repository root:
 
-```bash
+```powershell
 python -m pip install -e .
 ```
 
@@ -20,25 +20,25 @@ For fuller install instructions, see `INSTALLATION.md`.
 
 Open the GUI folder picker and run one or more modules:
 
-```bash
+```powershell
 catphan500 -m <module> [options]
 ```
 
 Pass a DICOM folder path explicitly:
 
-```bash
-catphan500 <folder_path> -m <module> [options]
+```powershell
+catphan500 C:\path\to\dicom_folder -m <module> [options]
 ```
 
 Run the legacy single-image mode:
 
-```bash
-catphan500 <image_path> --single-image -m <module> [options]
+```powershell
+catphan500 C:\path\to\slice.dcm --single-image -m <module> [options]
 ```
 
 Run the module directly after editable installation:
 
-```bash
+```powershell
 python -m catphan500.cli [folder_path] -m <module> [options]
 ```
 
@@ -67,7 +67,7 @@ python -m catphan500.cli [folder_path] -m <module> [options]
 
 Run a full DICOM-series analysis with the folder picker:
 
-```bash
+```powershell
 catphan500 -m full_analysis --plot
 ```
 
@@ -81,26 +81,26 @@ Current behavior in this mode:
 
 Run a full analysis against a known DICOM folder and save results to explicit locations:
 
-```bash
-catphan500 scans/catphan_series -m full_analysis --plot --save-plot results --out results/full_analysis.json
+```powershell
+catphan500 C:\path\to\dicom_folder -m full_analysis --plot --save-plot results --out results\full_analysis.json
 ```
 
 Run only selected modules:
 
-```bash
-catphan500 scans/catphan_series -m uniformity detailed_uniformity ctp401
+```powershell
+catphan500 C:\path\to\dicom_folder -m uniformity detailed_uniformity ctp401
 ```
 
 Display plots without saving JSON:
 
-```bash
-catphan500 scans/catphan_series -m uniformity --plot --show-plot --no-save
+```powershell
+catphan500 C:\path\to\dicom_folder -m uniformity --plot --show-plot --no-save
 ```
 
 Legacy single-image invocation:
 
-```bash
-catphan500 slice.dcm --single-image -m uniformity --plot
+```powershell
+catphan500 C:\path\to\slice.dcm --single-image -m uniformity --plot
 ```
 
 ## DICOM-Series Workflow
@@ -142,17 +142,20 @@ Examples:
 
 The JSON payload can include shared top-level fields such as:
 
-- `center`
-- `rotation_angle`
-- per-module result dictionaries such as `uniformity`, `ctp401`, `high_contrast`, and `ctp515`
+- `rotation_angle` when `ctp401` ran or a rotation override was supplied through the Python API
+- per-module result dictionaries such as `uniformity`, `detailed_uniformity`, `ctp401`, `high_contrast`, and `ctp515`
+
+The exact contents of each module dictionary are defined by the installed
+`alexandria` backend analyzers, so treat per-module keys as backend-driven
+rather than as a fixed CLI contract.
 
 ### Plot Files
 
 When `--plot` is used, each module produces a separate figure.
 
-If `--save-plot` points to an existing directory, files are written as:
+If `--save-plot` points to an existing directory at runtime, files are written as:
 
-```bash
+```powershell
 catphan500 -m full_analysis --plot --save-plot results
 ```
 
@@ -166,7 +169,7 @@ Typical files produced:
 
 If `--save-plot` is not an existing directory, it is treated as a filename prefix:
 
-```bash
+```powershell
 catphan500 -m full_analysis --plot --save-plot monthly_qa
 ```
 
@@ -177,6 +180,9 @@ Typical files produced:
 - `monthly_qa_ctp401.png`
 - `monthly_qa_high_contrast.png`
 - `monthly_qa_ctp515.png`
+
+This means `--save-plot plots` only behaves like a directory target if `plots/`
+already exists by the time plots are generated.
 
 If `full_analysis` is requested with `--plot` and `--save-plot` is omitted, the
 CLI defaults to saving plots in the current working directory.
@@ -190,7 +196,7 @@ programmatic workflow is:
 from pathlib import Path
 from catphan500 import Catphan500Analyzer, load_dicom_series
 
-series = load_dicom_series("path/to/dicom_folder")
+series = load_dicom_series(r"C:\path\to\dicom_folder")
 analyzer = Catphan500Analyzer(dicom_series=series, use_slice_averaging=True)
 
 results = analyzer.run_full_analysis()
@@ -208,7 +214,7 @@ individual `run_*` methods directly.
 If the environment reports that `alexandria` cannot be imported, reinstall the
 package and its dependencies:
 
-```bash
+```powershell
 python -m pip install -e .
 ```
 
@@ -263,7 +269,7 @@ If rotation appears incorrect:
 
 View CLI help:
 
-```bash
+```powershell
 catphan500 --help
 ```
 

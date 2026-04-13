@@ -22,6 +22,12 @@ and imported in Python as `alexandria`.
 
 ```text
 CT-CatPhan/
+|-- scripts/
+|   |-- build_executable.bat     # Windows batch wrapper for the build
+|   `-- build_executable.ps1     # Repeatable PowerShell build helper
+|-- packaging/
+|   `-- pyinstaller/
+|       `-- CT-CatPhan.spec      # Checked-in PyInstaller build spec
 |-- src/
 |   `-- catphan500/
 |       |-- __init__.py      # Public package exports
@@ -32,6 +38,7 @@ CT-CatPhan/
 |-- README.md                # Repository overview
 |-- QUICK_START.md           # Fast onboarding for users and developers
 |-- INSTALLATION.md          # Installation and environment setup
+|-- BUILD_EXECUTABLES.md     # Windows executable build guide
 `-- CLI_USAGE.md             # CLI reference and examples
 ```
 
@@ -43,7 +50,7 @@ delegates numerical analysis to the external `alexandria` backend.
 
 Install the package in editable mode from the repository root:
 
-```bash
+```powershell
 python -m pip install -e .
 ```
 
@@ -59,21 +66,33 @@ docs setup, see `INSTALLATION.md`.
 
 Run a full analysis with the folder picker:
 
-```bash
+```powershell
 catphan500 -m full_analysis --plot
 ```
 
 Run against a known DICOM folder and save plots to a directory:
 
-```bash
-catphan500 path/to/dicom_folder -m full_analysis --plot --save-plot results/
+```powershell
+catphan500 C:\path\to\dicom_folder -m full_analysis --plot --save-plot results
 ```
 
 Run selected modules only:
 
-```bash
-catphan500 path/to/dicom_folder -m uniformity detailed_uniformity ctp401
+```powershell
+catphan500 C:\path\to\dicom_folder -m uniformity detailed_uniformity ctp401
 ```
+
+### GUI Launcher
+
+Launch the simple folder-picker workflow:
+
+```powershell
+catphan500-gui
+```
+
+The launcher asks for the input DICOM folder and then an output folder. It
+runs the full analysis and saves both the JSON report and plot PNG files into
+the chosen output location.
 
 ### Python API
 
@@ -82,7 +101,7 @@ Recommended DICOM-series workflow:
 ```python
 from catphan500 import Catphan500Analyzer, load_dicom_series
 
-series = load_dicom_series("path/to/dicom_folder")
+series = load_dicom_series(r"C:\path\to\dicom_folder")
 analyzer = Catphan500Analyzer(dicom_series=series, use_slice_averaging=True)
 
 results = analyzer.run_full_analysis()
@@ -166,10 +185,32 @@ selection and enables optional 3-slice averaging.
 - The project depends on Alexandria analyzers and plotters provided by the
     `alexandria-project` distribution.
 
+## Releases
+
+The repository uses automatic versioning from git tags through `setuptools-scm`.
+To publish a release, create and push a tag in the format `vX.Y.Z`.
+
+Example:
+
+```powershell
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+Pushing a matching tag triggers GitHub Actions to:
+
+1. publish the documentation site to GitHub Pages
+2. build the Windows executable
+3. create or update the GitHub Release
+4. upload a versioned asset such as `CT-CatPhan-v1.2.3.exe`
+
+Standard branch pushes and merges do not publish docs or create release assets.
+
 ## Related Docs
 
 - See `QUICK_START.md` for the shortest path to first use or first development setup.
 - See `INSTALLATION.md` for full installation, verification, and docs-build instructions.
+- See `BUILD_EXECUTABLES.md` for the Windows executable build workflow.
 - See `CLI_USAGE.md` for command-line examples and option details.
 - See `docs/CHANGELOG.md` for the project changelog in GitHub-renderable Markdown.
 - See `docs/` for the Sphinx documentation source published to GitHub Pages.
@@ -181,7 +222,7 @@ directory and is built with Sphinx autodocumentation.
 
 Install the docs dependencies and build the site locally:
 
-```bash
+```powershell
 python -m pip install -e .[docs]
 python -m sphinx -b html docs docs/_build/html
 ```

@@ -15,7 +15,7 @@ The public Python package and CLI surface are both named `catphan500`.
 For normal package use, install the project in editable mode from the repository
 root:
 
-```bash
+```powershell
 python -m pip install -e .
 ```
 
@@ -40,7 +40,7 @@ Important note:
 If you also want to build the Sphinx documentation site locally, install the
 docs extra:
 
-```bash
+```powershell
 python -m pip install -e .[docs]
 ```
 
@@ -52,14 +52,21 @@ including Sphinx and the Markdown parser used by the docs site.
 You can verify that the package installed correctly by importing the public
 package:
 
-```bash
+```powershell
 python -c "import catphan500; print(catphan500.__all__)"
 ```
 
 You can also verify that the CLI entry point is available:
 
-```bash
+```powershell
 catphan500 --help
+```
+
+The repository also installs a GUI launcher entry point for the simple
+folder-picker workflow:
+
+```powershell
+catphan500-gui
 ```
 
 ## Build the Documentation Site
@@ -67,7 +74,7 @@ catphan500 --help
 After installing the docs extra, build the HTML documentation from the
 repository root with:
 
-```bash
+```powershell
 python -m sphinx -b html docs docs/_build/html
 ```
 
@@ -86,6 +93,11 @@ For local development, the typical sequence is:
 3. If you are working on docs, install `python -m pip install -e .[docs]` instead.
 4. Run the CLI or import the package in Python.
 
+## Build a Windows Executable
+
+For the dedicated executable build workflow, see `BUILD_EXECUTABLES.md` in the
+repository root.
+
 ## Troubleshooting
 
 ### `alexandria` import cannot be resolved
@@ -93,7 +105,7 @@ For local development, the typical sequence is:
 If the environment reports that `alexandria` cannot be imported, reinstall the
 package from the repository root:
 
-```bash
+```powershell
 python -m pip install -e .
 ```
 
@@ -109,6 +121,6 @@ If `catphan500` is not available after installation, verify that:
 
 As a fallback, you can invoke the CLI module directly:
 
-```bash
+```powershell
 python -m catphan500.cli --help
 ```

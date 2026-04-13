@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=69.0", "setuptools-scm[toml]>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "catphan500"
-version = "0.1.0"
+dynamic = ["version"]
 description = "CT-CatPhan toolkit for CatPhan CT image QA workflows."
 authors = [
     { name = "Oz", email = "jacgwat@gmail.com" }
@@ -37,6 +37,9 @@ docs = [
 [project.scripts]
 catphan500 = "catphan500.cli:main"
 
+[project.gui-scripts]
+catphan500-gui = "catphan500.gui_launcher:main"
+
 # -----------------------------
 # src/ package layout
 # -----------------------------
@@ -49,3 +52,7 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["catphan500*"]
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"

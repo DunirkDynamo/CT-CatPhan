@@ -13,13 +13,13 @@ The public package and CLI surface are both named `catphan500`.
 
 From the repository root:
 
-```bash
+```powershell
 python -m pip install -e .
 ```
 
 If you also plan to build the docs locally:
 
-```bash
+```powershell
 python -m pip install -e .[docs]
 ```
 
@@ -31,14 +31,14 @@ If you want to analyze a CatPhan DICOM series right away, use the CLI.
 
 Open the folder picker and run the full workflow:
 
-```bash
+```powershell
 catphan500 -m full_analysis --plot
 ```
 
 Or run against a known DICOM folder:
 
-```bash
-catphan500 path/to/dicom_folder -m full_analysis --plot --save-plot results
+```powershell
+catphan500 C:\path\to\dicom_folder -m full_analysis --plot --save-plot results
 ```
 
 What this does:
@@ -50,8 +50,8 @@ What this does:
 
 If you only want a few modules:
 
-```bash
-catphan500 path/to/dicom_folder -m uniformity detailed_uniformity ctp401
+```powershell
+catphan500 C:\path\to\dicom_folder -m uniformity detailed_uniformity ctp401
 ```
 
 ### Path B: Use the Python API
@@ -61,7 +61,7 @@ If you want to script the analysis in Python:
 ```python
 from catphan500 import Catphan500Analyzer, load_dicom_series
 
-series = load_dicom_series("path/to/dicom_folder")
+series = load_dicom_series(r"C:\path\to\dicom_folder")
 analyzer = Catphan500Analyzer(dicom_series=series, use_slice_averaging=True)
 
 results = analyzer.run_full_analysis()
@@ -76,7 +76,7 @@ If your goal is to work on the package itself:
 
 1. Install in editable mode:
 
-   ```bash
+   ```powershell
    python -m pip install -e .
    ```
 
@@ -88,13 +88,13 @@ If your goal is to work on the package itself:
 
 3. If you are working on documentation too, install the docs extra:
 
-   ```bash
+   ```powershell
    python -m pip install -e .[docs]
    ```
 
 4. Build the docs locally when needed:
 
-   ```bash
+   ```powershell
    python -m sphinx -b html docs docs/_build/html
    ```
 

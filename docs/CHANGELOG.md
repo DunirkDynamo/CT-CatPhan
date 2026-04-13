@@ -29,6 +29,33 @@ publishable changelog for the documentation site.
 - Configured the docs site to publish repo-root Markdown documents through
   wrapper pages so GitHub and GitHub Pages share one canonical source.
 
+### Release automation and packaging
+
+- Added a minimal GUI launcher for full-analysis execution through a folder
+  picker and output-folder picker.
+- Added Windows executable packaging assets, including:
+
+  - `scripts/build_executable.ps1`
+  - `scripts/build_executable.bat`
+  - `packaging/pyinstaller/CT-CatPhan.spec`
+  - `BUILD_EXECUTABLES.md`
+
+- Added a tag-driven GitHub Release workflow that builds a Windows executable
+  and publishes a versioned `.exe` asset when a `v*.*.*` tag is pushed.
+- Changed GitHub Pages publishing so documentation deploys only from release
+  tags in `v*.*.*` format rather than from normal branch pushes.
+- Switched package versioning to `setuptools-scm` so package and docs versions
+  are derived automatically from git tags.
+
+### Documentation standardization
+
+- Standardized the main user-facing markdown docs around PowerShell examples
+  and Windows-style path conventions.
+- Expanded the root `README.md` with GUI-launcher guidance, release tagging
+  instructions, and the current repository structure.
+- Updated installation, quick-start, CLI, and executable-build documentation to
+  match the Windows-oriented workflow now supported by the repository.
+
 ### Repository cleanup
 
 - Removed the obsolete `requirements.txt` file and standardized dependency

@@ -1,5 +1,6 @@
 """Sphinx configuration for the CT-CatPhan documentation site."""
 
+from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 import sys
 
@@ -13,7 +14,10 @@ sys.path.insert(0, str(SRC))
 # Define the project metadata shown throughout the generated site.
 project = "CT-CatPhan"
 author = "Oz"
-release = "0.1.0"
+try:
+    release = package_version("catphan500")
+except PackageNotFoundError:
+    release = "0.0.0"
 
 
 # Enable Sphinx extensions required for autodoc-based API reference pages.
