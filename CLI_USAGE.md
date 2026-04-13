@@ -1,531 +1,275 @@
-# Catphan404 CLI Usage Guide
+# CT-CatPhan CLI Usage Guide
 
-This guide provides examples and explanations for using the Catphan404 command-line interface.
+This guide documents the current public command-line behavior for the
+`catphan500` entry point.
 
 ## Installation
 
-Ensure the package and its dependencies are installed:
+Install the package from the repository root:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-## Basic Usage
+The backend dependency is installed from the `alexandria-project` distribution
+and imported by CT-CatPhan as `alexandria`.
 
-**Recommended (DICOM folder with GUI selection):**
-```bash
-catphan404 -m <module> [options]
-```
+For fuller install instructions, see `INSTALLATION.md`.
 
-**Specify DICOM folder path:**
-```bash
-catphan404 <folder_path> -m <module> [options]
-```
+## Command Forms
 
-**Legacy single-image mode:**
-```bash
-catphan404 <image_path> --single-image -m <module> [options]
-```
-
-Or if not installed as a package:
-```bash
-python -m Catphan404.cli [folder_path] -m <module> [options]
-```
-
-## Available Modules
-
-- `uniformity`      - Uniformity analysis (CTP486 module)
-- `high_contrast`   - High-contrast resolution / line pairs (CTP528 module)
-- `ctp401`          - HU linearity / material analysis (CTP401 module)
-- `ctp515`          - Low-contrast detectability (CTP515 module)
-
-**Note:** In folder mode, each module automatically selects its corresponding slice and performs 3-slice averaging for improved image quality.
-
-## Common Options
-
-- `-m, --modules`   - **Required.** Specify which module(s) to run
-- `-f, --folder`    - Explicitly treat input as DICOM folder (default behavior)
-- `--single-image`  - Legacy mode: treat input as single image file (no slice averaging)
-- `--out, -o`       - JSON output file path (default: `<module>.json`)
-- `--plot`          - Generate diagnostic plots
-- `--save-plot`     - Directory or file path to save plots as PNG
-- `--show-plot`     - Display plots interactively (default: full_analysis saves without showing)
-- `--no-save`       - Skip saving JSON results (useful for quick visual checks)
-
-## Automatic Rotation Detection
-
-**The package automatically detects phantom rotation** using air ROI positions in the CTP401 module and applies corrections to all subsequent modules.
-
-### How It Works
-
-1. **Detection** (CTP401 module): Locates top and bottom air ROIs, calculates rotation angle from their positions
-2. **Storage**: Rotation angle stored in results as `rotation_angle` (degrees)
-3. **Propagation**: Subsequent modules (`high_contrast`, `ctp515`) automatically use detected rotation
-4. **Override**: Manual rotation offsets can be provided via programmatic API
-
-### Workflow Example
-
-```python
-from catphan404.io import load_dicom_series
-from catphan404.analysis import Catphan404Analyzer
-
-series = load_dicom_series('scans/catphan')
-ana = Catphan404Analyzer(dicom_series=series)
-
-# Run CTP401 first to detect rotation
-ana.run_ctp401()  # Automatically detects rotation
-print(f"Detected rotation: {ana.results['rotation_angle']:.2f}°")
-
-# Other modules use detected rotation automatically
-ana.run_high_contrast()  # Uses rotation_angle from results
-ana.run_ctp515()  # Uses rotation_angle from results
-```
-
-### Manual Override (Programmatic API)
-
-```python
-# Disable automatic detection and set manual rotation
-ana.run_ctp401(detect_rotation=False, t_offset=2.5)  # 2.5° manual offset
-
-# Or override automatic detection
-ana.run_ctp401(t_offset=3.0)  # Uses 3.0° instead of detected value
-
-# Apply same offset to other modules
-ana.run_high_contrast(t_offset=3.0)
-ana.run_ctp515(angle_offset=3.0)
-```
-
-**Note:** The CLI does not expose rotation parameters; use the programmatic API for manual control.
-
-## DICOM Series Loading Details
-
-### Robust File Loading
-
-- **Recursive search**: Searches all subdirectories for DICOM files
-- **Extension-agnostic**: Attempts to read ALL files as DICOM, regardless of extension
-- **Force mode**: Uses `pydicom.dcmread(path, force=True)` for non-standard DICOM files
-- **Timestamp sorting**: Sorts slices chronologically using acquisition timestamps (reverse order)
-
-### Supported Timestamp Fields
-
- The loader checks these DICOM tags in order:
-1. `AcquisitionDateTime`
-2. `AcquisitionTime`
-3. `SeriesTime`
-4. `ContentTime`
-
-Slices are sorted in **reverse chronological order** (newest first), which typically matches the scanner's reconstruction order.
-
-### Debug Output
-
-The `load_dicom_series()` function prints:
-- Number of files checked
-- Number of successful DICOM loads
-- Slice order with timestamps for verification
-- First 3 error messages (if any)
-
-## Example Commands
-
-### Using Folder Selection Dialog (Recommended)
-
-Simply run without specifying a path to open a GUI folder selector:
+Open the GUI folder picker and run one or more modules:
 
 ```bash
-catphan404 -m uniformity high_contrast --plot
+catphan500 -m <module> [options]
 ```
 
-The program will prompt you to select a DICOM folder, then automatically:
-1. Load all DICOM slices from the folder
-2. Select the appropriate slice for each module
-3. Apply 3-slice averaging
-4. Run the analysis
-
-### Specify DICOM Folder Path
+Pass a DICOM folder path explicitly:
 
 ```bash
-catphan404 path/to/dicom_series -m uniformity ctp401 --plot --save-plot results/
+catphan500 <folder_path> -m <module> [options]
 ```
 
-### Multiple Modules in One Run
-
-Run all available modules on a DICOM series:
+Run the legacy single-image mode:
 
 ```bash
-catphan404 scans/catphan_series -m uniformity high_contrast ctp401 ctp515 --plot
+catphan500 <image_path> --single-image -m <module> [options]
 ```
 
-**Or use the full_analysis shortcut:**
+Run the module directly after editable installation:
 
 ```bash
-catphan404 -m full_analysis --plot
+python -m catphan500.cli [folder_path] -m <module> [options]
 ```
 
-Output:
-- `full_analysis.json` (or `uniformity_high_contrast_ctp401_ctp515.json`) with all results
-- Plots saved to current directory (but not displayed)
+## Modules
 
-**To display plots interactively:**
-```bash
-catphan404 -m full_analysis --plot --show-plot
-```
+- `uniformity`: Uniformity analysis on the CTP486 slice.
+- `detailed_uniformity`: Concentric profile sampling on the uniformity slice.
+- `ctp401`: HU linearity and material insert analysis.
+- `high_contrast`: High-contrast resolution and line-pair analysis.
+- `ctp515`: Low-contrast detectability analysis.
+- `full_analysis`: Convenience alias that expands to the dependency-aware order `uniformity -> detailed_uniformity -> ctp401 -> high_contrast -> ctp515`.
 
-### Save All Plots to Directory
+## Core Options
 
-**Using full_analysis (saves automatically, doesn't display):**
-```bash
-catphan404 -m full_analysis --plot --save-plot output_dir/
-```
+- `-m`, `--modules`: Required list of modules to run.
+- `-f`, `--folder`: Explicitly treat the input as a DICOM folder.
+- `--single-image`: Treat the input path as one image instead of a DICOM series.
+- `--average-slices`: Enable 3-slice averaging in DICOM-series mode.
+- `-o`, `--out`: JSON output path.
+- `--no-save`: Skip JSON file generation.
+- `--plot`: Generate diagnostic plots.
+- `--save-plot`: Save plots to an existing directory or use the value as a filename prefix.
+- `--show-plot`: Display plots interactively.
 
-**Or specify individual modules:**
-```bash
-catphan404 -m uniformity high_contrast ctp401 ctp515 --plot --save-plot output_dir/
-```
+## Recommended Usage Patterns
 
-Produces separate PNG files for each module:
-- `output_dir/uniformity.png`
-- `output_dir/high_contrast.png`
-- `output_dir/ctp401.png`
-- `output_dir/ctp515.png`
-
-**Using a file prefix instead of directory:**
-```bash
-catphan404 -m full_analysis --plot --save-plot qa_jan2026
-```
-
-Produces:
-- `qa_jan2026_uniformity.png`
-- `qa_jan2026_high_contrast.png`
-- `qa_jan2026_ctp401.png`
-- `qa_jan2026_ctp515.png`
-
-### Quick Visual Check (Display Only)
-
-View plots interactively without saving:
+Run a full DICOM-series analysis with the folder picker:
 
 ```bash
-catphan404 -m uniformity --plot --show-plot --no-save
+catphan500 -m full_analysis --plot
 ```
 
-### Save Plots Without Displaying (full_analysis default)
+Current behavior in this mode:
+
+- the folder picker opens if no path is supplied,
+- the full dependency-aware analysis order is used,
+- JSON output is written to `uniformity_detailed_uniformity_ctp401_high_contrast_ctp515.json` unless `--out` is supplied,
+- plots are generated, and
+- because `full_analysis` was requested, plots are saved to the current directory by default even when `--save-plot` is omitted.
+
+Run a full analysis against a known DICOM folder and save results to explicit locations:
 
 ```bash
-catphan404 -m full_analysis --plot
-# Saves plots to current directory but doesn't show them
+catphan500 scans/catphan_series -m full_analysis --plot --save-plot results --out results/full_analysis.json
 ```
 
-### Legacy Single-Image Mode
-
-For backwards compatibility, analyze a single DICOM slice without 3-slice averaging:
+Run only selected modules:
 
 ```bash
-catphan404 path/to/uniformity.dcm --single-image -m uniformity --plot
+catphan500 scans/catphan_series -m uniformity detailed_uniformity ctp401
 ```
 
-**Note:** Single-image mode is not recommended as it lacks the noise reduction benefits of 3-slice averaging.
-
-### Custom Output File
-
-Specify custom JSON output filename:
+Display plots without saving JSON:
 
 ```bash
-python -m Catphan404.cli image.dcm -m uniformity --out my_results.json
+catphan500 scans/catphan_series -m uniformity --plot --show-plot --no-save
 ```
 
-## Supported Input Formats
-
-**Primary: DICOM Folder (Recommended)**
-- Folder containing multiple DICOM slices
-- Requires `pydicom`
-- Enables automatic slice selection and 3-slice averaging
-- Preserves all metadata (pixel spacing, slice location, etc.)
-
-**Legacy: Single Image Files**
-- **DICOM** (`.dcm`) - Single slice, requires `pydicom` and `--single-image` flag
-- **PNG, TIFF, JPG** - Supported via `imageio` with `--single-image` flag
-
-**Note:** Single-image mode does not perform slice averaging and may have reduced image quality.
-
-## Programmatic Usage
-
-For scripting or batch processing:
-
-**Using DICOM series (recommended):**
-```python
-from Catphan404.io import load_dicom_series
-from Catphan404.analysis import Catphan404Analyzer
-
-# Load DICOM series from folder
-dicom_series = load_dicom_series('path/to/dicom_folder')
-
-# Create analyzer with series
-analyzer = Catphan404Analyzer(dicom_series=dicom_series)
-
-# Run multiple modules - each selects its own slice automatically
-# IMPORTANT: Run ctp401 first to enable automatic rotation detection
-analyzer.run_uniformity()
-analyzer.run_ctp401()  # Detects rotation automatically
-analyzer.run_high_contrast()  # Uses detected rotation from ctp401
-analyzer.run_ctp515()  # Uses detected rotation from ctp401
-
-# Check detected rotation
-print(f"Phantom rotation: {analyzer.results.get('rotation_angle', 0):.2f}°")
-
-# Save all results (includes rotation_angle)
-analyzer.save_results_json('output.json')
-
-# Generate plots
-from Catphan404.plots.plotters import UniformityPlotter, HighContrastPlotter
-fig1 = UniformityPlotter(analyzer._uniformity_analyzer).plot()
-fig2 = HighContrastPlotter(analyzer._high_contrast_analyzer).plot()
-fig1.savefig('uniformity.png')
-fig2.savefig('high_contrast.png')
-```
-
-**Legacy single-image mode:**
-```python
-from Catphan404.io import load_image
-from Catphan404.analysis import Catphan404Analyzer
-
-# Load single image
-img, meta = load_image('path/to/image.dcm')
-
-# Create analyzer with single image
-analyzer = Catphan404Analyzer(image=img, spacing=meta.get('Spacing'))
-
-# Run specific module
-analyzer.run_uniformity()
-
-# Save results
-analyzer.save_results_json('output.json')
-```
-
-## Workflow Example
-
-Complete analysis workflow using DICOM folder:
+Legacy single-image invocation:
 
 ```bash
-# Single command analyzes all modules from one DICOM series
-catphan404 scans/catphan_20260122 -m uniformity high_contrast ctp401 ctp515 \
-  --plot --save-plot results/ --out results/full_analysis.json
+catphan500 slice.dcm --single-image -m uniformity --plot
 ```
 
-This automatically:
-1. Loads all DICOM slices
-2. Selects appropriate slices for each module (slice indices: uniformity=6, high_contrast=2, ctp401=0, ctp515=4)
-3. Performs 3-slice averaging for each module
-4. Runs all analyses
-5. Saves JSON results and plots
+## DICOM-Series Workflow
 
-**Customizing slice indices:**
-```python
-from Catphan404.io import load_dicom_series
-from Catphan404.analysis import Catphan404Analyzer
+Folder mode is the primary workflow. In this mode the CLI:
 
-dicom_series = load_dicom_series('scans/catphan_20260122')
-analyzer = Catphan404Analyzer(dicom_series=dicom_series)
+1. Recursively scans the provided directory for candidate DICOM files.
+2. Loads slices with `pydicom.dcmread(..., force=True)`.
+3. Sorts slices using acquisition-related timestamps.
+4. Builds a `Catphan500Analyzer` around the loaded series.
+5. Runs the requested modules in a dependency-aware order.
 
-# Customize slice indices if needed
-analyzer.uniformity_slice_index = 10
-analyzer.high_contrast_slice_index = 5
+When `--average-slices` is enabled, module-specific target slices are averaged
+with neighboring slices where available.
 
-analyzer.run_uniformity()
-analyzer.run_high_contrast()
-```
+## Rotation Detection
 
-## Output Files
+Rotation detection is handled by the `ctp401` workflow.
+
+- `run_ctp401()` estimates a rotation angle from air ROI geometry.
+- The detected value is stored in results as `rotation_angle`.
+- Later module runs can reuse that angle automatically.
+
+For CLI usage, rotation behavior is automatic. Manual angle overrides are only
+available through the Python API.
+
+## Output Behavior
 
 ### JSON Results
 
-**When running multiple modules**, all results are saved to a **single JSON file** with each module's data as a separate key.
+Results from all requested modules are written into one JSON file. If `--out` is
+not specified, the filename is derived from the final module list actually run.
 
-**Default naming:**
-- If no `--out` is specified, the filename is derived from module names
-- Example: `uniformity_high_contrast_ctp401.json` or `full_analysis.json`
+Examples:
 
-**Custom filename:**
-```bash
-catphan404 -m full_analysis --out qa_report_jan2026.json
-```
+- `uniformity.json`
+- `uniformity_ctp401.json`
+- `uniformity_detailed_uniformity_ctp401_high_contrast_ctp515.json`
 
-**JSON structure for multiple modules:**
-```json
-{
-  "uniformity": {
-    "centre": {"mean": 5.2, "std": 3.1},
-    "north": {"mean": 5.5, "std": 3.0},
-    "east": {"mean": 5.3, "std": 3.2},
-    "south": {"mean": 5.4, "std": 3.1},
-    "west": {"mean": 5.1, "std": 3.0},
-    "uniformity": 1.23
-  },
-  "center": [256.0, 256.0],
-  "rotation_angle": 2.34,
-  "high_contrast": {
-    "mtf_50": 0.85,
-    "resolution_lp_per_mm": 2.5
-  },
-  "ctp401": {
-    "air": {"mean": -998.5, "std": 10.2},
-    "ldpe": {"mean": -95.3, "std": 8.1}
-  },
-  "ctp515": {
-    "n_detected": 6,
-    "blobs": {...}
-  }
-}
-```
+The JSON payload can include shared top-level fields such as:
 
-**Note:** `rotation_angle` (in degrees) is added when `run_ctp401()` is executed with automatic detection enabled (default).
-
-### Plot Images
-
-**When running multiple modules**, each module generates a **separate PNG file**.
-
-**Behavior based on `--save-plot` argument:**
-
-1. **Directory path** - Saves each module as `<dir>/<module>.png`:
-   ```bash
-   catphan404 -m full_analysis --plot --save-plot Results/
-   ```
-   Creates: `Results/uniformity.png`, `Results/high_contrast.png`, etc.
-
-2. **File prefix** - Saves as `<prefix>_<module>.png`:
-   ```bash
-   catphan404 -m full_analysis --plot --save-plot monthly_qa.png
-   ```
-   Creates: `monthly_qa_uniformity.png`, `monthly_qa_high_contrast.png`, etc.
-
-3. **Omitted** - Plots displayed but not saved:
-   ```bash
-   catphan404 -m full_analysis --plot
-   ```
-   Plots appear on screen only.
-
-**Each PNG file contains the full visualization** for its module (ROI overlays, graphs, histograms, profiles, etc.).
-
-### Single Module Output Examples
-
-**Single module example:**
-```json
-{
-  "uniformity": {
-    "centre": {"mean": 5.2, "std": 3.1},
-    "north": {"mean": 5.5, "std": 3.0},
-    ...
-    "uniformity": 1.23
-  },
-  "center": [256.0, 256.0]
-}
-```
-
-**ctp515.json:**
-```json
-{
-  "ctp515": {
-    "n_detected": 6,
-    "blobs": {
-      "roi_15mm": {
-        "x": 250, "y": 180,
-        "mean": -35.2, "std": 4.1,
-        "cnr": 8.5, "contrast": -2.3
-      },
-      ...
-    }
-  }
-}
-```
+- `center`
+- `rotation_angle`
+- per-module result dictionaries such as `uniformity`, `ctp401`, `high_contrast`, and `ctp515`
 
 ### Plot Files
 
-PNG images showing:
-- **Uniformity:** Image with ROIs, histograms, error bars, boxplots, profiles
-- **High Contrast:** Image with segments, MTF curve, stacked line profiles
-- **CTP401:** Image with ROIs, per-ROI histograms, heatmaps
-- **CTP515:** Image with color-coded ROIs, CNR/Contrast plots, statistics table
+When `--plot` is used, each module produces a separate figure.
+
+If `--save-plot` points to an existing directory, files are written as:
+
+```bash
+catphan500 -m full_analysis --plot --save-plot results
+```
+
+Typical files produced:
+
+- `results/uniformity.png`
+- `results/detailed_uniformity.png`
+- `results/ctp401.png`
+- `results/high_contrast.png`
+- `results/ctp515.png`
+
+If `--save-plot` is not an existing directory, it is treated as a filename prefix:
+
+```bash
+catphan500 -m full_analysis --plot --save-plot monthly_qa
+```
+
+Typical files produced:
+
+- `monthly_qa_uniformity.png`
+- `monthly_qa_detailed_uniformity.png`
+- `monthly_qa_ctp401.png`
+- `monthly_qa_high_contrast.png`
+- `monthly_qa_ctp515.png`
+
+If `full_analysis` is requested with `--plot` and `--save-plot` is omitted, the
+CLI defaults to saving plots in the current working directory.
+
+## Python API Notes
+
+The CLI is a thin orchestration layer over the Python API. The equivalent
+programmatic workflow is:
+
+```python
+from pathlib import Path
+from catphan500 import Catphan500Analyzer, load_dicom_series
+
+series = load_dicom_series("path/to/dicom_folder")
+analyzer = Catphan500Analyzer(dicom_series=series, use_slice_averaging=True)
+
+results = analyzer.run_full_analysis()
+analyzer.save_results_json("results.json")
+analyzer.generate_plots(save_plot_path=Path("results"), show_plot=False)
+```
+
+If you want manual control over rotation handling or module order, call the
+individual `run_*` methods directly.
 
 ## Troubleshooting
 
-### Module Not Found Error
+### `alexandria` Import Errors
 
-If you see `ModuleNotFoundError`, ensure you're running from the repository root:
-
-```bash
-cd c:\GitHub\catphan404
-python -m Catphan404.cli ...
-```
-
-### Missing Dependencies
-
-Install required packages:
+If the environment reports that `alexandria` cannot be imported, reinstall the
+package and its dependencies:
 
 ```bash
-pip install numpy scipy matplotlib pydicom imageio scikit-image
+python -m pip install -e .
 ```
 
-### DICOM Loading Issues
-
-If DICOM files fail to load, ensure `pydicom` is installed:
-
-```bash
-pip install pydicom
-```
-
-### Wrong Module for Image
-
-Each phantom slice should use its corresponding module:
-- Uniformity slice → `uniformity`
-- Line pair slice → `high_contrast`
-- Material inserts → `ctp401`
-- Low-contrast discs → `ctp515`
-
-Running the wrong module will produce incorrect or meaningless results.
+The install dependency is named `alexandria-project`, even though the import
+name used by CT-CatPhan is `alexandria`.
 
 ### DICOM Files Not Loading
 
-If DICOM files are not detected:
-1. Verify files are valid DICOM (even without `.dcm` extension)
-2. Check error messages printed by `load_dicom_series()` (shows first 3 errors)
-3. Ensure `pydicom` is installed: `pip install pydicom`
-4. Try loading individual files with `pydicom.dcmread(path, force=True)`
+If folder loading fails:
 
-### Incorrect Slice Order
+1. Confirm the folder actually contains valid DICOM slices.
+2. Check the first reported parse errors printed by `load_dicom_series()`.
+3. Verify `pydicom` is installed in the active environment.
 
-If slices appear in wrong order:
-1. Check debug output from `load_dicom_series()` - shows timestamps
-2. Verify DICOM files have acquisition timestamps (`AcquisitionTime`, `AcquisitionDateTime`, etc.)
-3. If timestamps are missing, manually sort by `InstanceNumber` or `SliceLocation`
+### Unexpected Analysis Results
+
+Make sure the requested module matches the slice content:
+
+- `uniformity` for the uniformity slice
+- `ctp401` for the material insert slice
+- `high_contrast` for the line-pair slice
+- `ctp515` for the low-contrast slice
+
+Running the wrong module on the wrong slice can still succeed technically while
+producing meaningless QA values.
+
+If slices appear in the wrong order:
+
+1. Check the debug output from `load_dicom_series()`.
+2. Verify the DICOM files contain acquisition-related timestamps.
+3. Confirm the input folder is the intended scan series.
 
 ### Rotation Detection Issues
 
 If rotation appears incorrect:
-1. Run `ctp401` module first to enable detection
-2. Check `rotation_angle` in results JSON
-3. Manually override if needed: `ana.run_ctp401(t_offset=<angle>)`
-4. Verify CTP401 slice is correctly loaded (should show material inserts)
-5. Disable detection if phantom is perfectly aligned: `detect_rotation=False`
+
+1. Make sure the CTP401 slice is part of the requested workflow.
+2. Check `rotation_angle` in the results JSON.
+3. Verify the selected slice actually contains the material inserts.
+4. Use the Python API if you need manual override parameters such as `t_offset` or `angle_offset`.
 
 ## Tips
 
-1. **Use folder mode** with DICOM series for best results (automatic slice selection + 3-slice averaging)
-2. **Run ctp401 first** to enable automatic rotation detection for all subsequent modules
-3. **Always use `--plot`** when first analyzing a new dataset to visually verify results
-4. **Run multiple modules** in one command to save time: `-m uniformity high_contrast ctp401 ctp515`
-5. **Check `rotation_angle`** in JSON output to verify phantom alignment
-6. **Verify slice order** - check debug output from `load_dicom_series()` if results seem incorrect
-7. **Check JSON output** for quantitative metrics and QA records
-8. **Organize output directories** by scan date or phantom serial number
-9. **Verify slice indices** if using a non-standard phantom orientation (adjust via programmatic API)
-10. **Keep original DICOM files** as they contain critical metadata (pixel spacing, slice location, timestamps, etc.)
+1. Use folder mode with DICOM series for the intended workflow.
+2. Use `full_analysis` when you want the package to handle dependency ordering automatically.
+3. Use `--plot` when first checking a new dataset so you can visually verify the module outputs.
+4. Use `--average-slices` in series mode when you want the optional 3-slice averaging behavior.
+5. Check the generated JSON output for `rotation_angle` and module-level QA metrics.
+6. Keep the original DICOM files because they contain the metadata used for spacing and slice ordering.
 
 ## Getting Help
 
 View CLI help:
 
 ```bash
-python -m Catphan404.cli --help
+catphan500 --help
 ```
 
 For more information, see:
-- `README.md` - Package overview
-- `.github/copilot-instructions.md` - Developer guidance
-- Source code in `Catphan404/` directory
+
+- `README.md` for the package overview.
+- `INSTALLATION.md` for installation guidance.
+- `docs/` for the published documentation source.
+- `src/catphan500/` for the package implementation.
