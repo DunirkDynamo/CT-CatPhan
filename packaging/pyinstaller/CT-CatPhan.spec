@@ -1,9 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+
+SPEC_FILE = Path(__file__).resolve()
+REPO_ROOT = SPEC_FILE.parents[2]
+SRC_ROOT = REPO_ROOT / 'src'
+GUI_LAUNCHER = SRC_ROOT / 'catphan500' / 'gui_launcher.py'
+
 
 a = Analysis(
-    ['src/catphan500/gui_launcher.py'],
-    pathex=['src'],
+    [str(GUI_LAUNCHER)],
+    pathex=[str(SRC_ROOT)],
     binaries=[],
     datas=[],
     hiddenimports=[],
