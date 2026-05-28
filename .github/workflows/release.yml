@@ -17,28 +17,73 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      - name: Derive release version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+
+          if (-not $tag) {
+              throw 'This workflow requires a git tag.'
+          }
+
+          $version = if ($tag.StartsWith('v')) { $tag.Substring(1) } else { $tag }
+
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.]+)?$') {
+              throw "Tag '$tag' is not a supported version tag. Use tags like v1.2.3 or 1.2.3."
+          }
+
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "asset_name=CT-CatPhan-$tag.exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "archive_name=CT-CatPhan-$tag.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Build executable
         shell: pwsh
         run: .\scripts\build_executable.ps1 -InstallBuildTool -Clean
 
-      - name: Rename executable for release
+      - name: Show resolved version context
+        shell: pwsh
+        run: |
+          git rev-parse HEAD
+          git tag --points-at HEAD
+          python -c "from importlib.metadata import version; print(version('catphan500'))"
+
+      - name: Verify package version matches tag
+        env:
+          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python -c "from importlib.metadata import version; import os; expected=os.environ['EXPECTED_VERSION']; actual=version('catphan500'); print(f'Expected version: {expected}'); print(f'Package version: {actual}'); raise SystemExit(0 if actual == expected else 1)"
+
+      - name: Prepare release assets
         id: package
         shell: pwsh
         run: |
-          $assetName = "CT-CatPhan-${{ github.ref_name }}.exe"
-          Rename-Item -Path 'dist/CT-CatPhan.exe' -NewName $assetName
-          "asset_name=$assetName" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Copy-Item 'dist/CT-CatPhan.exe' "release/${{ steps.version.outputs.asset_name }}"
+          Compress-Archive -Path "release/${{ steps.version.outputs.asset_name }}" -DestinationPath "release/${{ steps.version.outputs.archive_name }}" -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-executable-${{ steps.version.outputs.version }}
+          path: |
+            release/${{ steps.version.outputs.asset_name }}
+            release/${{ steps.version.outputs.archive_name }}
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
-          files: dist/${{ steps.package.outputs.asset_name }}
+          files: |
+            release/${{ steps.version.outputs.asset_name }}
+            release/${{ steps.version.outputs.archive_name }}
           fail_on_unmatched_files: true

@@ -5,16 +5,18 @@ GUI script or bundled as an executable. The workflow is intentionally simple:
 
 1. Prompt the user to choose a DICOM folder.
 2. Prompt the user to choose an output folder.
-3. Load the series from the selected DICOM folder.
-4. Run the standard full analysis pipeline.
-5. Save results as JSON and plots into the selected output folder.
-6. Report success or failure with a dialog box.
+3. Prompt the user to choose the center-finding algorithm.
+4. Load the series from the selected DICOM folder.
+5. Run the standard full analysis pipeline.
+6. Save results as JSON and plots into the selected output folder.
+7. Report success or failure with a dialog box.
 """
 
 from pathlib import Path
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinter import ttk
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -26,6 +28,11 @@ else:
 
 
 DEFAULT_OUTPUT_NAME = "catphan500_full_analysis.json"
+
+CENTER_ALGORITHM_OPTIONS = {
+    "Edge-based (default)": "edge",
+    "Mirror correlation": "mirror",
+}
 
 
 def _show_progress_dialog(root: tk.Tk) -> tk.Toplevel:
@@ -70,10 +77,59 @@ def choose_output_folder(root: tk.Tk, initial_dir: str) -> str:
     )
 
 
-def run_full_analysis_for_folder(folder_path: str, output_folder: str) -> Path:
+def choose_center_algorithm(root: tk.Tk) -> str:
+    """Prompt the user to choose the center-finding algorithm."""
+    selection = tk.StringVar(value="Edge-based (default)")
+    chosen_algorithm = {"value": ""}
+
+    dialog = tk.Toplevel(root)
+    dialog.title("CT-CatPhan")
+    dialog.resizable(False, False)
+    dialog.attributes("-topmost", True)
+    dialog.transient(root)
+    dialog.grab_set()
+
+    frame = tk.Frame(dialog, padx=18, pady=16)
+    frame.pack(fill="both", expand=True)
+
+    tk.Label(
+        frame,
+        text="Select center-finding algorithm",
+        justify="left",
+    ).pack(anchor="w")
+
+    ttk.Combobox(
+        frame,
+        textvariable=selection,
+        values=list(CENTER_ALGORITHM_OPTIONS.keys()),
+        state="readonly",
+        width=28,
+    ).pack(fill="x", pady=(8, 14))
+
+    button_row = tk.Frame(frame)
+    button_row.pack(anchor="e")
+
+    def _accept() -> None:
+        chosen_algorithm["value"] = CENTER_ALGORITHM_OPTIONS[selection.get()]
+        dialog.destroy()
+
+    def _cancel() -> None:
+        chosen_algorithm["value"] = ""
+        dialog.destroy()
+
+    ttk.Button(button_row, text="Cancel", command=_cancel).pack(side="right")
+    ttk.Button(button_row, text="OK", command=_accept).pack(side="right", padx=(0, 8))
+
+    dialog.protocol("WM_DELETE_WINDOW", _cancel)
+    dialog.update_idletasks()
+    dialog.wait_window()
+    return chosen_algorithm["value"]
+
+
+def run_full_analysis_for_folder(folder_path: str, output_folder: str, center_algorithm: str) -> Path:
     """Run full analysis and save JSON plus plots in the chosen output folder."""
     series = load_dicom_series(folder_path)
-    analyzer = Catphan500Analyzer(dicom_series=series)
+    analyzer = Catphan500Analyzer(dicom_series=series, center_algorithm=center_algorithm)
     analyzer.run_full_analysis()
 
     output_dir = Path(output_folder)
@@ -99,10 +155,15 @@ def main() -> None:
         root.destroy()
         return
 
+    center_algorithm = choose_center_algorithm(root)
+    if not center_algorithm:
+        root.destroy()
+        return
+
     progress_dialog = _show_progress_dialog(root)
 
     try:
-        output_path = run_full_analysis_for_folder(folder_path, output_folder)
+        output_path = run_full_analysis_for_folder(folder_path, output_folder, center_algorithm)
     except Exception as exc:
         progress_dialog.destroy()
         messagebox.showerror(
@@ -117,6 +178,7 @@ def main() -> None:
     messagebox.showinfo(
         "CT-CatPhan",
         "Full analysis completed successfully.\n\n"
+        f"Center-finding algorithm: {center_algorithm}\n\n"
         f"JSON saved to:\n{output_path}\n\n"
         f"Plots saved to:\n{Path(output_folder)}",
         parent=root,

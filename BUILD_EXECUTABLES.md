@@ -4,8 +4,9 @@ This document explains how to build the Windows executable for the simple
 CT-CatPhan GUI launcher.
 
 The executable is intended for users who should be able to double-click an app,
-select a folder containing CatPhan DICOM data, select an output folder, and run
-the full analysis without using the command line.
+select a folder containing CatPhan DICOM data, select an output folder, choose
+the center-finding algorithm, and run the full analysis without using the
+command line.
 
 This guide is written for two audiences:
 
@@ -22,9 +23,10 @@ The GUI launcher:
 
 1. opens a folder-selection dialog for the input DICOM folder,
 2. opens a second folder-selection dialog for the output location,
-3. runs the package full-analysis workflow,
-4. writes `catphan500_full_analysis.json` to the chosen output folder, and
-5. saves the module plot PNG files to that same output folder.
+3. opens a dropdown dialog for choosing the center-finding algorithm,
+4. runs the package full-analysis workflow,
+5. writes `catphan500_full_analysis.json` to the chosen output folder, and
+6. saves the module plot PNG files to that same output folder.
 
 The launcher code lives in `src/catphan500/gui_launcher.py`.
 
@@ -247,8 +249,9 @@ GitHub Actions is configured so that pushing a tag matching `v*.*.*` will:
 
 1. build and publish the documentation site to GitHub Pages
 2. build the Windows executable
-3. create or update a GitHub Release for that tag
-4. upload a versioned asset named like `CT-CatPhan-v1.2.3.exe`
+3. verify that the package version derived by `setuptools-scm` matches the tag
+4. create or update a GitHub Release for that tag
+5. upload versioned assets named like `CT-CatPhan-v1.2.3.exe` and `CT-CatPhan-v1.2.3.zip`
 
 Standard commits, merges, and branch pushes do not publish docs or create
 release assets.

@@ -75,6 +75,12 @@ def parse_args():
         help="Enable 3-slice averaging (averages target slice with neighbors). Only works in folder mode."
     )
     parser.add_argument(
+        '--center-algorithm',
+        choices=['edge', 'mirror'],
+        default='edge',
+        help="Center-finding algorithm for the uniformity module: 'edge' (default) or 'mirror'."
+    )
+    parser.add_argument(
         '--modules', '-m',
         nargs='+',
         choices=AVAILABLE_MODULES,
@@ -159,7 +165,8 @@ def run_cli(args):
             
             analyzer = Catphan500Analyzer(
                 dicom_series=dicom_series,  # Full DICOM series used for module orchestration.
-                use_slice_averaging=args.average_slices  # Slice-averaging preference from the CLI.
+                use_slice_averaging=args.average_slices,  # Slice-averaging preference from the CLI.
+                center_algorithm=args.center_algorithm,
             )
         except Exception as e:
             print(f"❌ Failed to load DICOM series: {e}")
@@ -170,7 +177,11 @@ def run_cli(args):
         print(f"Loading single image from: {input_path}")
         try:
             img, meta = load_image(input_path)  # Image array and metadata loaded from the requested file.
-            analyzer = Catphan500Analyzer(image=img, spacing=meta.get('Spacing'))  # Analyzer configured for single-image mode.
+            analyzer = Catphan500Analyzer(
+                image=img,
+                spacing=meta.get('Spacing'),
+                center_algorithm=args.center_algorithm,
+            )  # Analyzer configured for single-image mode.
         except Exception as e:
             print(f"❌ Failed to load image: {e}")
             return

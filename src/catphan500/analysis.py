@@ -36,6 +36,7 @@ try:
         CTP515Analyzer,
         DetailedUniformityAnalyzer,
     )
+    from alexandria.utils import find_center_mirror_correlation
     from alexandria.plotters.high_contrast_plotter import HighContrastPlotter
     from alexandria.plotters.uniformity_plotter import UniformityPlotter
     from alexandria.plotters.ctp401_plotter import CTP401Plotter
@@ -125,11 +126,13 @@ class Catphan500Analyzer:
             analyzers for phantom-center localization.
         center_threshold_fallback (float): Secondary threshold used when the
             primary threshold cannot establish a stable phantom center.
+        center_algorithm (str): Strategy used by the backend uniformity analyzer
+            when it is asked to detect the phantom center automatically.
         results (dict[str, Any]): JSON-serializable results accumulated from
             each executed module.
     """
 
-    def __init__(self, dicom_series=None, image: np.ndarray = None, spacing: Optional[Tuple[float, float]] = None, use_slice_averaging: bool = False, catphan_diameter_mm: float = 150.0, center_threshold: float = -980.0, center_threshold_fallback: float = -900.0):
+    def __init__(self, dicom_series=None, image: np.ndarray = None, spacing: Optional[Tuple[float, float]] = None, use_slice_averaging: bool = False, catphan_diameter_mm: float = 150.0, center_threshold: float = -900.0, center_threshold_fallback: float = -900.0, center_algorithm: str = 'edge'):
         """Initialize the analyzer with either a DICOM series or one image.
 
         Args:
@@ -148,6 +151,9 @@ class Catphan500Analyzer:
                 analyzers during phantom-center localization.
             center_threshold_fallback (float): Fallback threshold passed to
                 backend analyzers when the primary threshold is insufficient.
+            center_algorithm (str): Center-finding strategy used by the
+                backend uniformity analyzer. Supported values are ``'edge'``
+                and ``'mirror'``.
 
         Raises:
             ValueError: If neither ``dicom_series`` nor ``image`` is provided.
@@ -159,6 +165,11 @@ class Catphan500Analyzer:
         # The analyzer cannot function without some source image data.
         if dicom_series is None and image is None:
             raise ValueError("Either dicom_series or image must be provided")
+
+        # Restrict center-algorithm selection to the small set of backend
+        # strategies this coordinator knows how to configure explicitly.
+        if center_algorithm not in {'edge', 'mirror'}:
+            raise ValueError("center_algorithm must be 'edge' or 'mirror'")
         
         # Persist the full DICOM series when the caller is using folder mode.
         self.dicom_series = dicom_series  # Full list of DICOM slice records.
@@ -185,12 +196,18 @@ class Catphan500Analyzer:
         self.high_contrast_slice_index = 2  # Default series index for the CTP528 slice.
         self.ctp401_slice_index = 0  # Default series index for the CTP401 slice.
         self.ctp515_slice_index = 4  # Default series index for the CTP515 slice.
+
+        # Phantom center detected by the uniformity module. This is reused for
+        # the detailed-uniformity view of the same slice, but other modules are
+        # allowed to recompute their own centers on their own images.
+        self._phantom_center = None  # Set after run_uniformity() completes.
         
         # Preserve center-finding related configuration on the analyzer so all
         # module methods forward the same backend tuning values.
         self.catphan_diameter_mm = catphan_diameter_mm  # Reference phantom diameter.
         self.center_threshold = center_threshold  # Primary center-detection threshold.
         self.center_threshold_fallback = center_threshold_fallback  # Backup threshold if the primary one fails.
+        self.center_algorithm = center_algorithm  # Uniformity center-finding strategy.
 
         # Store all module outputs in one JSON-friendly dictionary so callers
         # can save a single structured report after any subset of analyses.
@@ -236,6 +253,15 @@ class Catphan500Analyzer:
         # Use the first spacing value as the backend pixel spacing scalar and
         # fall back to 1.0 mm/pixel if spacing metadata is absent.
         spacing = self.spacing[0] if self.spacing else 1.0  # Scalar spacing forwarded to the backend analyzer.
+
+        # Configure the backend center finder for the requested strategy. The
+        # default edge-based path is represented by ``None`` so the backend can
+        # use its built-in center finder with no special wiring.
+        center_finder = None
+        center_finder_kwargs = None
+        if self.center_algorithm == 'mirror':
+            center_finder = find_center_mirror_correlation
+            center_finder_kwargs = {}
         
         # Create the backend analyzer with no explicit center so the backend can
         # determine the phantom center using its own logic.
@@ -243,6 +269,8 @@ class Catphan500Analyzer:
             self.image,
             center=None,
             pixel_spacing=spacing,
+            center_finder=center_finder,
+            center_finder_kwargs=center_finder_kwargs,
             center_threshold=self.center_threshold,
             center_threshold_fallback=self.center_threshold_fallback
         )
@@ -252,6 +280,10 @@ class Catphan500Analyzer:
 
         # Persist the analyzer instance for any follow-on plotting requests.
         self._uniformity_analyzer = analyzer  # Most recent uniformity backend object.
+
+        # Cache the detected CTP486 center so the detailed-uniformity view can
+        # reuse the exact same center on the same module image.
+        self._phantom_center = analyzer.center
 
     def run_detailed_uniformity(self):
         """
@@ -280,11 +312,11 @@ class Catphan500Analyzer:
         # backend analyzer.
         spacing = self.spacing[0] if self.spacing else 1.0  # Scalar backend spacing.
 
-        # Construct the backend analyzer and allow it to perform its own center
-        # localization from the provided image.
+        # Construct the backend analyzer, reusing the uniformity center when
+        # available so both uniformity views share the same geometry.
         analyzer = DetailedUniformityAnalyzer(
             image=self.image,
-            center=None,
+            center=self._phantom_center,
             pixel_spacing=spacing,
             center_threshold=self.center_threshold,
             center_threshold_fallback=self.center_threshold_fallback
@@ -336,8 +368,9 @@ class Catphan500Analyzer:
         # backend analyzer.
         spacing = self.spacing[0] if self.spacing else 1.0  # Scalar backend spacing.
         
-        # Create the backend analyzer and let it compute its own phantom center
-        # and other internal geometry.
+        # Create the backend analyzer with no explicit center so CTP528 can
+        # localize itself on its own slice. Mirror-correlation center finding
+        # is intentionally reserved for the uniformity module only.
         analyzer = HighContrastAnalyzer(
             image=self.image,
             center=None,
@@ -391,8 +424,8 @@ class Catphan500Analyzer:
         # the backend analyzer.
         spacing = self.spacing[0] if self.spacing else 1.0  # Scalar backend spacing.
         
-        # Create the backend analyzer and allow it to determine center/boundary
-        # details from the provided image.
+        # Create the backend analyzer with no explicit center so CTP401 can
+        # localize itself on its own slice using the backend edge-based path.
         analyzer = CTP401Analyzer(
             image=self.image,
             center=None,
@@ -404,9 +437,13 @@ class Catphan500Analyzer:
         # Decide how the rotation angle should be established for this module.
         # Automatic detection is only used when the caller did not supply one.
         if t_offset is None and detect_rotation:
-            rotation_angle = analyzer.detect_rotation()  # Backend-estimated phantom rotation angle.
-            t_offset = rotation_angle  # Persist the detected value for this analysis call.
-            self.results['rotation_angle'] = float(rotation_angle)  # Stored for downstream module reuse.
+            rotation_result = analyzer.detect_rotation()
+            if isinstance(rotation_result, tuple):
+                rotation_angle = float(rotation_result[0])
+            else:
+                rotation_angle = float(rotation_result)
+            t_offset = rotation_angle
+            self.results['rotation_angle'] = rotation_angle
             print(f"🔄 Detected rotation: {rotation_angle:.2f}°")
         elif t_offset is not None:
             self.results['rotation_angle'] = float(t_offset)  # Explicit user-supplied rotation override.
@@ -472,8 +509,9 @@ class Catphan500Analyzer:
         # the backend analyzer.
         spacing = self.spacing[0] if self.spacing else 1.0  # Scalar backend spacing.
         
-        # Create the backend analyzer and allow it to estimate any geometric
-        # values it needs from the cropped or uncropped image.
+        # Create the backend analyzer with no explicit center so CTP515 can
+        # localize itself on its own slice. This avoids forcing the uniformity
+        # center onto modules whose slices may be shifted or skewed.
         analyzer = CTP515Analyzer(
             cropped_image,
             center=None,

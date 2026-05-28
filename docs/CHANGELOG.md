@@ -3,6 +3,15 @@
 This page consolidates the repository's historical development notes into one
 publishable changelog for the documentation site.
 
+## 2026-05-26
+
+### Release workflow hardening
+
+- Updated the tag-driven GitHub Release workflow so it verifies that the
+  package version resolved by `setuptools-scm` matches the pushed release tag.
+- Updated the Windows release packaging flow to publish both a versioned `.exe`
+  asset and a matching `.zip` archive.
+
 ## 2026-04-13
 
 ### Repository documentation overhaul

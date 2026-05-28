@@ -11,6 +11,7 @@ The package is designed primarily for DICOM series workflows and supports:
 
 - automatic per-module slice selection,
 - optional 3-slice averaging,
+- selectable uniformity center finding (`edge` or `mirror`),
 - automatic rotation detection from the CTP401 slice,
 - JSON-serializable results, and
 - CLI and programmatic usage.
@@ -70,6 +71,13 @@ Run a full analysis with the folder picker:
 catphan500 -m full_analysis --plot
 ```
 
+Run the same workflow with the mirror-correlation center finder for the
+uniformity module:
+
+```powershell
+catphan500 -m full_analysis --plot --center-algorithm mirror
+```
+
 Run against a known DICOM folder and save plots to a directory:
 
 ```powershell
@@ -91,8 +99,9 @@ catphan500-gui
 ```
 
 The launcher asks for the input DICOM folder and then an output folder. It
-runs the full analysis and saves both the JSON report and plot PNG files into
-the chosen output location.
+runs the full analysis, lets the user choose the center-finding algorithm from
+a dropdown, and saves both the JSON report and plot PNG files into the chosen
+output location.
 
 ### Python API
 
@@ -102,7 +111,11 @@ Recommended DICOM-series workflow:
 from catphan500 import Catphan500Analyzer, load_dicom_series
 
 series = load_dicom_series(r"C:\path\to\dicom_folder")
-analyzer = Catphan500Analyzer(dicom_series=series, use_slice_averaging=True)
+analyzer = Catphan500Analyzer(
+    dicom_series=series,
+    use_slice_averaging=True,
+    center_algorithm="mirror",
+)
 
 results = analyzer.run_full_analysis()
 analyzer.save_results_json("results.json")
@@ -140,6 +153,10 @@ Main analyzer methods:
 - `run_ctp515()`
 - `save_results_json(path)`
 - `generate_plots(...)`
+
+The `Catphan500Analyzer` constructor also accepts `center_algorithm="edge"`
+or `center_algorithm="mirror"` to control how the uniformity workflow finds
+the phantom center before downstream modules reuse it.
 
 Plot helper methods are also exposed on the analyzer for module-specific figure
 generation.
@@ -201,8 +218,9 @@ Pushing a matching tag triggers GitHub Actions to:
 
 1. publish the documentation site to GitHub Pages
 2. build the Windows executable
-3. create or update the GitHub Release
-4. upload a versioned asset such as `CT-CatPhan-v1.2.3.exe`
+3. verify that the package version resolved by `setuptools-scm` matches the pushed tag
+4. create or update the GitHub Release
+5. upload versioned assets such as `CT-CatPhan-v1.2.3.exe` and `CT-CatPhan-v1.2.3.zip`
 
 Standard branch pushes and merges do not publish docs or create release assets.
 

@@ -57,6 +57,7 @@ python -m catphan500.cli [folder_path] -m <module> [options]
 - `-f`, `--folder`: Explicitly treat the input as a DICOM folder.
 - `--single-image`: Treat the input path as one image instead of a DICOM series.
 - `--average-slices`: Enable 3-slice averaging in DICOM-series mode.
+- `--center-algorithm`: Choose how the uniformity module finds the phantom center. Supported values are `edge` (default) and `mirror`.
 - `-o`, `--out`: JSON output path.
 - `--no-save`: Skip JSON file generation.
 - `--plot`: Generate diagnostic plots.
@@ -69,6 +70,13 @@ Run a full DICOM-series analysis with the folder picker:
 
 ```powershell
 catphan500 -m full_analysis --plot
+```
+
+Run the same workflow with mirror-correlation center finding for the uniformity
+module:
+
+```powershell
+catphan500 -m full_analysis --plot --center-algorithm mirror
 ```
 
 Current behavior in this mode:
@@ -89,6 +97,13 @@ Run only selected modules:
 
 ```powershell
 catphan500 C:\path\to\dicom_folder -m uniformity detailed_uniformity ctp401
+```
+
+Run against a known DICOM folder while explicitly selecting the mirror center
+finder:
+
+```powershell
+catphan500 C:\path\to\dicom_folder -m full_analysis --plot --center-algorithm mirror
 ```
 
 Display plots without saving JSON:
@@ -115,6 +130,22 @@ Folder mode is the primary workflow. In this mode the CLI:
 
 When `--average-slices` is enabled, module-specific target slices are averaged
 with neighboring slices where available.
+
+## Center Finding
+
+Center finding is configured through `--center-algorithm`.
+
+- `edge`: Uses the backend default edge-based center finder.
+- `mirror`: Uses the alexandria mirror-correlation center finder on the
+  uniformity slice.
+
+The selected center is cached by `Catphan500Analyzer` after `uniformity` runs
+and is then reused by downstream modules such as `ctp401`, `high_contrast`,
+and `ctp515`.
+
+This means `--center-algorithm mirror` changes the phantom center shared across
+the analysis workflow, even though the downstream module order and rotation
+detection path stay the same.
 
 ## Rotation Detection
 
@@ -197,7 +228,11 @@ from pathlib import Path
 from catphan500 import Catphan500Analyzer, load_dicom_series
 
 series = load_dicom_series(r"C:\path\to\dicom_folder")
-analyzer = Catphan500Analyzer(dicom_series=series, use_slice_averaging=True)
+analyzer = Catphan500Analyzer(
+	dicom_series=series,
+	use_slice_averaging=True,
+	center_algorithm="mirror",
+)
 
 results = analyzer.run_full_analysis()
 analyzer.save_results_json("results.json")
